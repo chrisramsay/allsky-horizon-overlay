@@ -1,0 +1,19 @@
+# Generated outputs
+horizon_overlay.png
+preview.png
+circle_check.png
+
+# VIIRS source data (large, re-downloadable)
+*.tif
+*.tif.gz
+*.dat.tif
+
+# Config dumps contain passwords and API keys - never commit
+allsky-config/
+config-*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

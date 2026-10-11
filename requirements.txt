@@ -1,0 +1,5 @@
+# horizon_overlay.py, find_circle.py (both already present in indi-allsky's virtualenv)
+pillow
+numpy
+# viirs_profile.py only - run on a desktop/server, not needed on the Pi
+rasterio
