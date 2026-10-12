@@ -23,6 +23,7 @@ each script — change them for another setup.
 | `viirs_profile.py` | Desktop / server | Turns a VIIRS night-lights GeoTIFF into `profile.csv` — light reaching the site per degree of azimuth |
 | `find_circle.py` | Pi | Measures the fisheye image circle (centre and diameter) in a real frame |
 | `apply_config.sh` | Pi | Applies `config/allsky-patch.jq` to the live indi-allsky config: backup, diff, load, restart, check |
+| `detection_mask.py` | Pi | Generates `detection_mask.png`: sky above a chosen altitude, for detection and exposure metering |
 | `config/allsky-patch.jq` | Pi | The indi-allsky settings this setup depends on, as a jq patch |
 
 ---
@@ -215,6 +216,22 @@ systemctl --user restart indi-allsky
 The PNG must be **RGBA** — transparent background with per-element alpha
 (arcs 255, bezel ~100, bars 40–200). If an editor flattens it to RGB, the
 overlay will black out the sky.
+
+## 7. Detection / metering mask (optional)
+
+`detection_mask.py` writes a black-and-white PNG (white = use, black = ignore)
+covering the sky above `MIN_ALT` (default 20°), with optional extra exclusions
+for obstructions via `SECTORS = [(az_from, az_to, min_alt), ...]`. indi-allsky
+uses it for star/meteor detection and to measure image brightness, so streetlights
+and lit low cloud near the horizon don't skew the exposure.
+
+```bash
+python3 detection_mask.py --preview <full-size frame>   # red = ignored
+sudo cp detection_mask.png /var/lib/indi-allsky/detection_mask.png
+```
+
+Then uncomment the `DETECT_MASK` line in `config/allsky-patch.jq` and apply.
+Uses the same geometry constants (and `ROT`, `EAST_LEFT`) as `horizon_overlay.py`.
 
 ---
 
