@@ -66,10 +66,8 @@
 | .IMAGE_DENOISE_STRENGTH = 2
 | .IMAGE_DENOISE_DAY      = ""
 
+
 # --- Detection / brightness mask (from detection_mask.py) ----------------------
 # Uncomment after copying detection_mask.png into place:
 # | .DETECT_MASK = "/var/lib/indi-allsky/detection_mask.png"
 
-# --- Horizon overlay ---------------------------------------------------------------
-# Uncomment (remove the leading '#', keep the '|') if not already set in the web UI:
-# | .LOGO_OVERLAY = "/var/lib/indi-allsky/horizon_overlay.png"
