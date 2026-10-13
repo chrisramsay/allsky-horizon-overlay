@@ -36,18 +36,18 @@
 | .TARGET_ADU_DEV_DAY = 10
 
 # --- White balance --------------------------------------------------------------
-| .WBR_FACTOR     = 1.16 | .WBG_FACTOR     = 1.00 | .WBB_FACTOR     = 1.15
-| .WBR_FACTOR_DAY = 1.28 | .WBG_FACTOR_DAY = 1.00 | .WBB_FACTOR_DAY = 0.98
-| .WBR_MTF_MIDTONES     = 0.50 | .WBG_MTF_MIDTONES     = 0.51 | .WBB_MTF_MIDTONES     = 0.50
-| .WBR_MTF_MIDTONES_DAY = 0.50 | .WBG_MTF_MIDTONES_DAY = 0.50 | .WBB_MTF_MIDTONES_DAY = 0.50
+| .WBR_FACTOR     = 1.16 | .WBG_FACTOR     = 1.0 | .WBB_FACTOR     = 1.15
+| .WBR_FACTOR_DAY = 1.28 | .WBG_FACTOR_DAY = 1.0 | .WBB_FACTOR_DAY = 0.98
+| .WBR_MTF_MIDTONES     = 0.5 | .WBG_MTF_MIDTONES     = 0.51 | .WBB_MTF_MIDTONES     = 0.5
+| .WBR_MTF_MIDTONES_DAY = 0.5 | .WBG_MTF_MIDTONES_DAY = 0.5  | .WBB_MTF_MIDTONES_DAY = 0.5
 | .AUTO_WB = false | .AUTO_WB_DAY = false
 | .SCNR_ALGORITHM = "" | .SCNR_ALGORITHM_DAY = ""
 
 # --- Stretch: MTF mode 2, day and night ---------------------------------------
 | .IMAGE_STRETCH.CLASSNAME        = "mode2_mtf"
 | .IMAGE_STRETCH.MODE2_SHADOWS    = 0.03
-| .IMAGE_STRETCH.MODE2_MIDTONES   = 0.40
-| .IMAGE_STRETCH.MODE2_HIGHLIGHTS = 1.00
+| .IMAGE_STRETCH.MODE2_MIDTONES   = 0.4
+| .IMAGE_STRETCH.MODE2_HIGHLIGHTS = 1.0
 | .IMAGE_STRETCH.DAYTIME          = true
 
 # --- Contrast: CLAHE at night only ----------------------------------------------
@@ -58,8 +58,8 @@
 
 # --- Tone, colour, sharpness ------------------------------------------------------
 | .GAMMA_CORRECTION  = 0.87 | .GAMMA_CORRECTION_DAY  = 1.565
-| .SATURATION_FACTOR = 1.10 | .SATURATION_FACTOR_DAY = 1.30
-| .SHARPEN_AMOUNT    = 0.20 | .SHARPEN_AMOUNT_DAY    = 0.75
+| .SATURATION_FACTOR = 1.1  | .SATURATION_FACTOR_DAY = 1.3
+| .SHARPEN_AMOUNT    = 0.2  | .SHARPEN_AMOUNT_DAY    = 0.75
 
 # --- Noise reduction: wavelet at night (slow - watch "Image processed in") --------
 | .IMAGE_DENOISE          = "wavelet"
@@ -70,4 +70,5 @@
 # --- Detection / brightness mask (from detection_mask.py) ----------------------
 # Uncomment after copying detection_mask.png into place:
 # | .DETECT_MASK = "/var/lib/indi-allsky/detection_mask.png"
+| .DETECT_MASK = "/var/lib/indi-allsky/detection_mask.png"
 
