@@ -13,7 +13,9 @@ exclusions for obstructions (house, trees) in particular directions.
 Usage:
     python3 detection_mask.py                       # -> detection_mask.png
     python3 detection_mask.py --preview frame.jpg   # also -> mask_preview.png
-                                                    #   (use a full-size frame from the Pi)
+                                                    #   (rough visual check only - the
+                                                    #    saved frames are cropped, the
+                                                    #    mask is not)
                                                     #   (ignored area tinted red)
 
 Then copy detection_mask.png to /var/lib/indi-allsky/ and set DETECT_MASK.
@@ -24,18 +26,29 @@ import math
 from PIL import Image, ImageDraw
 
 # --------------------------------------------------------------------------
-# Image geometry - must match the image indi-allsky runs detection on.
-# Defaults: the 3456 x 3456 crop, circle centred (same as the horizon overlay).
+# Image geometry
+#
+# IMPORTANT: unlike the logo overlay, the detection mask must match the FULL,
+# UNCROPPED sensor frame (3552 x 3552 here). indi-allsky uses it for the SQM
+# calculation before IMAGE_CROP_ROI is applied; a mask at the cropped size
+# makes the image worker crash on every frame with
+#   cv2.error: (-209:Sizes of input arguments do not match) ... 'binary_op'
+#
+# In the uncropped frame the circle centre is ~65 px from the middle, but the
+# direction depends on whether indi-allsky applies its flips before or after
+# this stage, so the offsets are left at 0. The cut-off disc (radius ~1279 px
+# at 20 deg) sits well inside the 1658 px sky circle, so a 65 px error doesn't
+# matter for metering or SQM.
 # --------------------------------------------------------------------------
-IMG_W = 3552
+IMG_W = 3552                # full sensor frame, NOT the crop
 IMG_H = 3552
 LENS_IMAGE_CIRCLE = 3316    # px diameter
 LENS_FOV = 181.5            # deg
-LENS_OFFSET_X = 0
+LENS_OFFSET_X = 0           # see note above
 LENS_OFFSET_Y = 0
 
-ROT = 0.0                   # same values as horizon_overlay.py
-EAST_LEFT = False
+ROT = 0.0                   # same values as horizon_overlay.py; only used by
+EAST_LEFT = False           # SECTORS - see the warning there
 
 # --------------------------------------------------------------------------
 # What to keep
@@ -45,6 +58,11 @@ MIN_ALT = 20.0              # ignore everything below this altitude (deg)
 # Extra exclusions: (azimuth_from, azimuth_to, min_altitude) in degrees.
 # Sky in that azimuth range is ignored below min_altitude. Ranges can wrap
 # through north (e.g. 340 -> 20).
+#
+# WARNING: not yet verified on this setup. If indi-allsky applies the mask
+# before its flips (both H and V = a 180 deg rotation), sectors land on the
+# opposite side of the sky; ROT = 180 would then be needed here. Check with
+# star detection or a deliberate test sector before relying on them.
 SECTORS = [
     # (330, 30, 35),        # example: house to the north, up to 35 deg
     # (100, 140, 28),       # example: trees to the ESE (Grasby direction)
@@ -107,7 +125,8 @@ def main():
         frame = Image.open(args.preview).convert("RGB")
         m = mask
         if frame.size != mask.size:
-            # a full frame with border: centre the mask on it
+            # saved frames are cropped (+ border); the mask is full-sensor size.
+            # Centre one on the other - approximate, offsets not applied.
             pad = Image.new("L", frame.size, 0)
             pad.paste(mask, ((frame.width - IMG_W) // 2, (frame.height - IMG_H) // 2))
             m = pad
