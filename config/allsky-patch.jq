@@ -39,7 +39,7 @@
 | .WBR_FACTOR     = 1.16 | .WBG_FACTOR     = 1.0 | .WBB_FACTOR     = 1.15
 | .WBR_FACTOR_DAY = 1.28 | .WBG_FACTOR_DAY = 1.0 | .WBB_FACTOR_DAY = 0.98
 | .WBR_MTF_MIDTONES     = 0.5 | .WBG_MTF_MIDTONES     = 0.51 | .WBB_MTF_MIDTONES     = 0.5
-| .WBR_MTF_MIDTONES_DAY = 0.5 | .WBG_MTF_MIDTONES_DAY = 0.5  | .WBB_MTF_MIDTONES_DAY = 0.5
+| .WBR_MTF_MIDTONES_DAY = 0.5 | .WBG_MTF_MIDTONES_DAY = 0.5 | .WBB_MTF_MIDTONES_DAY = 0.5
 | .AUTO_WB = false | .AUTO_WB_DAY = false
 | .SCNR_ALGORITHM = "" | .SCNR_ALGORITHM_DAY = ""
 
@@ -58,8 +58,8 @@
 
 # --- Tone, colour, sharpness ------------------------------------------------------
 | .GAMMA_CORRECTION  = 0.87 | .GAMMA_CORRECTION_DAY  = 1.565
-| .SATURATION_FACTOR = 1.1  | .SATURATION_FACTOR_DAY = 1.3
-| .SHARPEN_AMOUNT    = 0.2  | .SHARPEN_AMOUNT_DAY    = 0.75
+| .SATURATION_FACTOR = 1.1 | .SATURATION_FACTOR_DAY = 1.3
+| .SHARPEN_AMOUNT    = 0.2 | .SHARPEN_AMOUNT_DAY    = 0.75
 
 # --- Noise reduction: wavelet at night (slow - watch "Image processed in") --------
 | .IMAGE_DENOISE          = "wavelet"
