@@ -27,8 +27,8 @@ from PIL import Image, ImageDraw
 # Image geometry - must match the image indi-allsky runs detection on.
 # Defaults: the 3456 x 3456 crop, circle centred (same as the horizon overlay).
 # --------------------------------------------------------------------------
-IMG_W = 3456
-IMG_H = 3456
+IMG_W = 3552
+IMG_H = 3552
 LENS_IMAGE_CIRCLE = 3316    # px diameter
 LENS_FOV = 181.5            # deg
 LENS_OFFSET_X = 0
