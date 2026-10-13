@@ -219,19 +219,81 @@ overlay will black out the sky.
 
 ## 7. Detection / metering mask (optional)
 
-`detection_mask.py` writes a black-and-white PNG (white = use, black = ignore)
-covering the sky above `MIN_ALT` (default 20°), with optional extra exclusions
-for obstructions via `SECTORS = [(az_from, az_to, min_alt), ...]`. indi-allsky
-uses it for star/meteor detection and to measure image brightness, so streetlights
-and lit low cloud near the horizon don't skew the exposure.
+`detection_mask.py` writes `detection_mask.png`: a black-and-white image where
+**white = use** and **black = ignore**. indi-allsky uses it for star and meteor
+detection and to measure image brightness, so streetlights, house lights and
+lit low cloud near the horizon don't skew the exposure.
+
+### Where the geometry comes from
+
+The script does **not** read image sizes from a frame. Everything comes from the
+constants at the top of the script:
+
+| Constant | Value here | Meaning |
+|---|---|---|
+| `IMG_W`, `IMG_H` | 3456 | Mask size — the **cropped** image, before the border |
+| `LENS_IMAGE_CIRCLE` | 3316 | Image circle diameter, px |
+| `LENS_FOV` | 181.5 | Full field of view, degrees |
+| `LENS_OFFSET_X/Y` | 0, 0 | Circle centre offset from the middle of the canvas |
+| `ROT`, `EAST_LEFT` | 0.0, `False` | Orientation — only matters if you use `SECTORS` |
+| `MIN_ALT` | 20 | Everything below this altitude is ignored |
+| `SECTORS` | empty | Extra exclusions: `(az_from, az_to, min_alt)` |
+
+Keep these identical to the values in `horizon_overlay.py` — both describe the
+same image. If you change the crop or lens, update both.
+
+### What it does
+
+1. Creates a black canvas `IMG_W` × `IMG_H`.
+2. Finds the horizon radius: `(LENS_IMAGE_CIRCLE / 2) × 90 / (LENS_FOV / 2)`
+   — here 1658 × 90 / 90.75 ≈ **1644 px**.
+3. Finds the cut-off radius. On an equidistant fisheye, radius is proportional
+   to zenith angle: `r = horizon_radius × (90 − MIN_ALT) / 90` — at 20° that's
+   1644 × 70 / 90 ≈ **1279 px**.
+4. Draws a white disc of that radius — the sky that's used.
+5. Blacks out each `SECTORS` entry from the disc edge inward to its own altitude.
+   Ranges can wrap through north, e.g. `(330, 30, 35)` ignores NNW–NNE below 35°.
+6. Saves `detection_mask.png`.
+
+### The `--preview` frame
+
+Purely a visual check: the script tints the ignored area red on a real image and
+writes `mask_preview.png`. Use a **full-size** frame copied from the Pi
+(3616 × 3616 including the border), not one saved from the browser, which may be
+downscaled. A frame larger than the mask has the mask centred on it, which lines
+up because the border is equal on all four sides.
+
+### Steps
 
 ```bash
-python3 detection_mask.py --preview <full-size frame>   # red = ignored
+# 1. Generate the mask and a preview
+python3 detection_mask.py --preview /var/www/html/allsky/images/latest.jpg
+
+# 2. Check mask_preview.png: red should cover the low horizon all round.
+#    Adjust MIN_ALT / SECTORS in the script and re-run until it fits your horizon.
+
+# 3. Install
 sudo cp detection_mask.png /var/lib/indi-allsky/detection_mask.png
 ```
 
-Then uncomment the `DETECT_MASK` line in `config/allsky-patch.jq` and apply.
-Uses the same geometry constants (and `ROT`, `EAST_LEFT`) as `horizon_overlay.py`.
+4. Uncomment the `DETECT_MASK` line in `config/allsky-patch.jq`, then
+   `./apply_config.sh --dry-run` and `./apply_config.sh`.
+5. Check indi-allsky accepted it:
+
+   ```bash
+   sudo journalctl --since "5 min ago" --no-pager | grep -iE 'mask|dimension'
+   ```
+
+   If it reports a dimension mismatch, indi-allsky wants the mask at the
+   **uncropped** size: set `IMG_W = IMG_H = 3552`, `LENS_OFFSET_X = -44`,
+   `LENS_OFFSET_Y = 48` (the circle's offset in the uncropped frame) and regenerate.
+
+### Tuning
+
+- **`MIN_ALT`**: 25–30° for a cluttered horizon, 15° for a clear one.
+- **`SECTORS`**: add one wherever an obstruction (house, trees) rises above
+  `MIN_ALT`. Once the camera is in its final position, the preview shows where
+  they are.
 
 ---
 
