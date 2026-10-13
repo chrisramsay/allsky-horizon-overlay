@@ -2,6 +2,11 @@
 horizon_overlay.png
 preview.png
 circle_check.png
+detection_mask.png
+mask_preview.png
+
+# VIIRS 
+profile.csv
 
 # VIIRS source data (large, re-downloadable)
 *.tif
