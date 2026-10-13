@@ -9,7 +9,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")" && pwd)"
 PATCH="$REPO/config/allsky-patch.jq"
 CHECK="$REPO/find_circle.py"
-OUTDIR=~/allsky-config
+OUTDIR="$REPO/allsky-config"
 WAIT=60                                   # seconds to wait for fresh frames
 IMAGE=/var/www/html/allsky/images/latest.jpg
 
