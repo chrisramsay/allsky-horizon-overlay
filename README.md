@@ -23,7 +23,7 @@ each script — change them for another setup.
 | `viirs_profile.py` | Desktop / server | Turns a VIIRS night-lights GeoTIFF into `profile.csv` — light reaching the site per degree of azimuth |
 | `find_circle.py` | Pi | Measures the fisheye image circle (centre and diameter) in a real frame |
 | `apply_config.sh` | Pi | Applies `config/allsky-patch.jq` to the live indi-allsky config: backup, diff, load, restart, check |
-| `detection_mask.py` | Pi | Generates `detection_mask.png`: sky above a chosen altitude, for detection and exposure metering |
+| `detection_mask.py` | Pi | Generates `detection_mask.png` (full sensor size): sky above a chosen altitude, for detection, SQM and exposure metering |
 | `config/allsky-patch.jq` | Pi | The indi-allsky settings this setup depends on, as a jq patch |
 
 ---
@@ -221,8 +221,17 @@ overlay will black out the sky.
 
 `detection_mask.py` writes `detection_mask.png`: a black-and-white image where
 **white = use** and **black = ignore**. indi-allsky uses it for star and meteor
-detection and to measure image brightness, so streetlights, house lights and
+detection, SQM, and measuring image brightness, so streetlights, house lights and
 lit low cloud near the horizon don't skew the exposure.
+
+> **The mask must match the full, uncropped sensor frame (3552 × 3552)** — not
+> the cropped size used by the logo overlay. indi-allsky applies it in the SQM
+> calculation *before* `IMAGE_CROP_ROI`. A mask at the cropped size crashes the
+> image worker on every frame, so no images are saved:
+>
+> ```
+> cv2.error: ... (-209:Sizes of input arguments do not match) ... 'binary_op'
+> ```
 
 ### Where the geometry comes from
 
@@ -231,16 +240,23 @@ constants at the top of the script:
 
 | Constant | Value here | Meaning |
 |---|---|---|
-| `IMG_W`, `IMG_H` | 3456 | Mask size — the **cropped** image, before the border |
+| `IMG_W`, `IMG_H` | 3552 | Mask size — the **full sensor frame**, uncropped |
 | `LENS_IMAGE_CIRCLE` | 3316 | Image circle diameter, px |
 | `LENS_FOV` | 181.5 | Full field of view, degrees |
-| `LENS_OFFSET_X/Y` | 0, 0 | Circle centre offset from the middle of the canvas |
-| `ROT`, `EAST_LEFT` | 0.0, `False` | Orientation — only matters if you use `SECTORS` |
+| `LENS_OFFSET_X/Y` | 0, 0 | Circle centre offset — deliberately 0, see below |
+| `ROT`, `EAST_LEFT` | 0.0, `False` | Orientation — only used by `SECTORS` |
 | `MIN_ALT` | 20 | Everything below this altitude is ignored |
 | `SECTORS` | empty | Extra exclusions: `(az_from, az_to, min_alt)` |
 
-Keep these identical to the values in `horizon_overlay.py` — both describe the
-same image. If you change the crop or lens, update both.
+`LENS_IMAGE_CIRCLE` and `LENS_FOV` should match `horizon_overlay.py`; the
+**size and offsets differ**, because the overlay is applied after the crop and
+the mask before it.
+
+**Why the offsets are 0:** in the uncropped frame the circle centre is about
+65 px from the middle, but whether that's up-left or down-right depends on
+whether indi-allsky applies its flips before or after this stage — not yet
+established. The cut-off disc (≈1279 px radius at 20°) sits well inside the
+1658 px sky circle, so a 65 px error is harmless for metering and SQM.
 
 ### What it does
 
@@ -252,48 +268,51 @@ same image. If you change the crop or lens, update both.
    1644 × 70 / 90 ≈ **1279 px**.
 4. Draws a white disc of that radius — the sky that's used.
 5. Blacks out each `SECTORS` entry from the disc edge inward to its own altitude.
-   Ranges can wrap through north, e.g. `(330, 30, 35)` ignores NNW–NNE below 35°.
 6. Saves `detection_mask.png`.
+
+### Sectors — not yet verified
+
+`SECTORS` entries such as `(330, 30, 35)` (ignore NNW–NNE below 35°) are drawn
+using `ROT` and `EAST_LEFT`. Because the mask is applied before the crop, and
+possibly before the flips, a sector may land on the **opposite side of the sky**
+(both flips = a 180° rotation; `ROT = 180` would correct it). Leave `SECTORS`
+empty until the orientation is confirmed, e.g. with a deliberate test sector and
+star detection.
 
 ### The `--preview` frame
 
-Purely a visual check: the script tints the ignored area red on a real image and
-writes `mask_preview.png`. Use a **full-size** frame copied from the Pi
-(3616 × 3616 including the border), not one saved from the browser, which may be
-downscaled. A frame larger than the mask has the mask centred on it, which lines
-up because the border is equal on all four sides.
+A rough visual check only: the script tints the ignored area red on a frame and
+writes `mask_preview.png`. Saved frames are cropped (3616 × 3616 with border)
+while the mask is full-sensor size, so the preview centres one on the other and
+ignores the offset — fine for judging `MIN_ALT`, not for exact alignment.
 
 ### Steps
 
 ```bash
-# 1. Generate the mask and a preview
+# 1. Generate the mask (and optionally a preview)
 python3 detection_mask.py --preview /var/www/html/allsky/images/latest.jpg
+file detection_mask.png            # must say 3552 x 3552
 
-# 2. Check mask_preview.png: red should cover the low horizon all round.
-#    Adjust MIN_ALT / SECTORS in the script and re-run until it fits your horizon.
-
-# 3. Install
+# 2. Install
 sudo cp detection_mask.png /var/lib/indi-allsky/detection_mask.png
 ```
 
-4. Uncomment the `DETECT_MASK` line in `config/allsky-patch.jq`, then
+3. Set `DETECT_MASK` in `config/allsky-patch.jq`, then
    `./apply_config.sh --dry-run` and `./apply_config.sh`.
-5. Check indi-allsky accepted it:
+4. Confirm the image worker is happy:
 
    ```bash
-   sudo journalctl --since "5 min ago" --no-pager | grep -iE 'mask|dimension'
+   sudo journalctl --since "5 min ago" --no-pager | grep -c 'Image worker exception'   # expect 0
    ```
 
-   If it reports a dimension mismatch, indi-allsky wants the mask at the
-   **uncropped** size: set `IMG_W = IMG_H = 3552`, `LENS_OFFSET_X = -44`,
-   `LENS_OFFSET_Y = 48` (the circle's offset in the uncropped frame) and regenerate.
+   If it isn't 0, disable the mask at once (`| .DETECT_MASK = ""` in the patch,
+   then apply) — no images are saved while the worker is crashing, and the
+   watchdog will start restarting the services.
 
 ### Tuning
 
 - **`MIN_ALT`**: 25–30° for a cluttered horizon, 15° for a clear one.
-- **`SECTORS`**: add one wherever an obstruction (house, trees) rises above
-  `MIN_ALT`. Once the camera is in its final position, the preview shows where
-  they are.
+- **`SECTORS`**: see the warning above before using.
 
 ---
 
@@ -307,3 +326,4 @@ sudo cp detection_mask.png /var/lib/indi-allsky/detection_mask.png
 | Arcs/ticks outside the rim disappear | Circle mask drawn over them — raise `IMAGE_CIRCLE_MASK.DIAMETER` |
 | `find_circle.py` width ≠ height | Rim detection failed; use the current version (radial scan) and check `circle_check.png` |
 | Crop values rejected | All four `IMAGE_CROP_ROI` values must be even |
+| `Image worker exception` … `Sizes of input arguments do not match` | Detection mask is the wrong size — it must be the **uncropped** 3552 × 3552; disable `DETECT_MASK` until fixed |
