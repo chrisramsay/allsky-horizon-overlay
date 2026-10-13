@@ -219,6 +219,10 @@ overlay will black out the sky.
 
 ## 7. Detection / metering mask (optional)
 
+![Example overlay](docs/mask_preview.png)
+
+*Example mask preview from running the script with the `--preview` option.*
+
 `detection_mask.py` writes `detection_mask.png`: a black-and-white image where
 **white = use** and **black = ignore**. indi-allsky uses it for star and meteor
 detection, SQM, and measuring image brightness, so streetlights, house lights and
