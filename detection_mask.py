@@ -26,47 +26,37 @@ import math
 from PIL import Image, ImageDraw
 
 # --------------------------------------------------------------------------
-# Image geometry
+# Geometry and mask settings come from site.toml (see site.example.toml).
 #
 # IMPORTANT: unlike the logo overlay, the detection mask must match the FULL,
-# UNCROPPED sensor frame (3552 x 3552 here). indi-allsky uses it for the SQM
-# calculation before IMAGE_CROP_ROI is applied; a mask at the cropped size
-# makes the image worker crash on every frame with
+# UNCROPPED sensor frame ([frame.full], 3552 x 3552 here). indi-allsky uses it
+# for the SQM calculation before IMAGE_CROP_ROI is applied; a mask at the
+# cropped size makes the image worker crash on every frame with
 #   cv2.error: (-209:Sizes of input arguments do not match) ... 'binary_op'
 #
 # In the uncropped frame the circle centre is ~65 px from the middle, but the
 # direction depends on whether indi-allsky applies its flips before or after
-# this stage, so the offsets are left at 0. The cut-off disc (radius ~1279 px
-# at 20 deg) sits well inside the 1658 px sky circle, so a 65 px error doesn't
-# matter for metering or SQM.
-# --------------------------------------------------------------------------
-IMG_W = 3552                # full sensor frame, NOT the crop
-IMG_H = 3552
-LENS_IMAGE_CIRCLE = 3316    # px diameter
-LENS_FOV = 181.5            # deg
-LENS_OFFSET_X = 0           # see note above
-LENS_OFFSET_Y = 0
-
-ROT = 0.0                   # same values as horizon_overlay.py; only used by
-EAST_LEFT = False           # SECTORS - see the warning there
-
-# --------------------------------------------------------------------------
-# What to keep
-# --------------------------------------------------------------------------
-MIN_ALT = 20.0              # ignore everything below this altitude (deg)
-
-# Extra exclusions: (azimuth_from, azimuth_to, min_altitude) in degrees.
-# Sky in that azimuth range is ignored below min_altitude. Ranges can wrap
-# through north (e.g. 340 -> 20).
+# this stage, so [frame.full] offsets are left at 0. The cut-off disc (radius
+# ~1279 px at 20 deg) sits well inside the 1658 px sky circle, so a 65 px
+# error doesn't matter for metering or SQM.
 #
-# WARNING: not yet verified on this setup. If indi-allsky applies the mask
-# before its flips (both H and V = a 180 deg rotation), sectors land on the
-# opposite side of the sky; ROT = 180 would then be needed here. Check with
-# star detection or a deliberate test sector before relying on them.
-SECTORS = [
-    # (330, 30, 35),        # example: house to the north, up to 35 deg
-    # (100, 140, 28),       # example: trees to the ESE (Grasby direction)
-]
+# SECTORS are NOT YET VERIFIED: if the mask is applied before the flips (both
+# H and V = a 180 deg rotation) they land on the opposite side of the sky, and
+# rot would need +180. Test before relying on them.
+# --------------------------------------------------------------------------
+import allsky_site  # noqa: E402
+
+_CFG = allsky_site.load()
+IMG_W = _CFG["frame"]["full"]["width"]
+IMG_H = _CFG["frame"]["full"]["height"]
+LENS_OFFSET_X = _CFG["frame"]["full"]["offset_x"]
+LENS_OFFSET_Y = _CFG["frame"]["full"]["offset_y"]
+LENS_IMAGE_CIRCLE = _CFG["lens"]["image_circle"]
+LENS_FOV = _CFG["lens"]["fov"]
+ROT = _CFG["orientation"]["rot"]
+EAST_LEFT = _CFG["orientation"]["east_left"]
+MIN_ALT = float(_CFG["mask"]["min_alt"])
+SECTORS = [tuple(x) for x in _CFG["mask"].get("sectors", [])]
 
 
 CX = IMG_W / 2 + LENS_OFFSET_X

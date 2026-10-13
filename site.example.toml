@@ -1,0 +1,63 @@
+# Shared settings for horizon_overlay.py, detection_mask.py and viirs_profile.py
+#
+# Copy to site.toml and edit:   cp site.example.toml site.toml
+# site.toml is git-ignored, so your own values stay local. If it's missing,
+# the scripts fall back to this example (and say so).
+# Another file can be used with:  ALLSKY_SITE=/path/to/file.toml python3 ...
+
+[site]
+name      = "Searby"
+latitude  = 53.538
+longitude = -0.383
+
+[lens]
+image_circle = 3316     # px diameter - measure with find_circle.py
+fov          = 181.5    # full field of view, degrees
+
+[orientation]
+rot       = 0.0         # degrees, + = clockwise on screen - calibrate with Polaris
+east_left = false       # false matches indi-allsky's cardinals with both flips on
+
+# indi-allsky applies the logo overlay AFTER IMAGE_CROP_ROI, but uses the
+# detection mask (for SQM) BEFORE it - so the two need different canvases.
+
+[frame.cropped]         # horizon_overlay.py - must equal the IMAGE_CROP_ROI size
+width    = 3456
+height   = 3456
+offset_x = 0            # circle centre offset from the canvas middle, px
+offset_y = 0
+
+[frame.full]            # detection_mask.py - full, uncropped sensor frame
+width    = 3552
+height   = 3552
+offset_x = 0            # deliberately 0 - see README, section 7
+offset_y = 0
+
+[overlay]
+labels_inside = true    # false needs ~130 px of margin outside the circle in the crop
+
+# Towns on the horizon overlay. width_km sets the arc length; population only
+# decides which label gets first pick of a ring when two would collide.
+towns = [
+  { name = "Hull",         lat = 53.744, lon = -0.333, width_km = 12.0, population = 267000 },
+  { name = "Grimsby",      lat = 53.567, lon = -0.080, width_km = 8.0,  population = 130000 },
+  { name = "Grasby",       lat = 53.530, lon = -0.359, width_km = 0.7,  population = 400 },
+  { name = "Caistor",      lat = 53.497, lon = -0.316, width_km = 1.5,  population = 2500 },
+  { name = "Market Rasen", lat = 53.388, lon = -0.337, width_km = 2.0,  population = 4000 },
+  { name = "Lincoln",      lat = 53.234, lon = -0.538, width_km = 8.0,  population = 104000 },
+  { name = "Brigg",        lat = 53.552, lon = -0.489, width_km = 2.0,  population = 6000 },
+  { name = "Scunthorpe",   lat = 53.588, lon = -0.654, width_km = 7.0,  population = 82000 },
+]
+
+[mask]
+min_alt = 20.0          # detection mask ignores sky below this altitude, degrees
+# Extra exclusions as [azimuth_from, azimuth_to, min_altitude] - NOT YET
+# VERIFIED, may land 180 deg out (see README). Example:
+#   sectors = [ [330, 30, 35], [100, 140, 28] ]
+sectors = []
+
+[viirs]
+radius_km  = 60.0       # how far out to count light
+min_km     = 1.0        # ignore your own garden / house lights
+walker_exp = 2.5        # sky glow ~ light x distance^-2.5
+smooth_deg = 3          # circular moving average, odd number (1 = off)

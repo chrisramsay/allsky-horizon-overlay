@@ -27,6 +27,9 @@ README - getting the data
 3. pip install rasterio numpy
 4. python3 viirs_profile.py lincs_viirs.tif
 
+Site location and the settings below come from site.toml (needs
+allsky_site.py and site.toml / site.example.toml alongside this script).
+
 Run it wherever is convenient (desktop or OMV); only profile.csv needs to go
 to the Pi for the overlay script.
 """
@@ -38,12 +41,15 @@ import numpy as np
 import rasterio
 from rasterio.windows import from_bounds
 
-SITE_LAT = 53.538
-SITE_LON = -0.383
-RADIUS_KM = 60.0       # how far out to count light
-MIN_KM = 1.0           # ignore your own garden / house lights
-WALKER_EXP = 2.5       # sky glow ~ light * distance^-2.5
-SMOOTH_DEG = 3         # circular moving-average width (odd number, 1 = off)
+import allsky_site  # site.toml - see site.example.toml
+
+_CFG = allsky_site.load()
+SITE_LAT = _CFG["site"]["latitude"]
+SITE_LON = _CFG["site"]["longitude"]
+RADIUS_KM = float(_CFG["viirs"]["radius_km"])     # how far out to count light
+MIN_KM = float(_CFG["viirs"]["min_km"])           # ignore your own lights
+WALKER_EXP = float(_CFG["viirs"]["walker_exp"])   # sky glow ~ light * distance^-2.5
+SMOOTH_DEG = int(_CFG["viirs"]["smooth_deg"])     # moving-average width (odd, 1 = off)
 EARTH_KM = 6371.0
 
 

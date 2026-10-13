@@ -1,5 +1,6 @@
-# horizon_overlay.py, find_circle.py (both already present in indi-allsky's virtualenv)
+# Python 3.11+ (tomllib). horizon_overlay.py, detection_mask.py, find_circle.py:
 pillow
 numpy
 # viirs_profile.py only - run on a desktop/server, not needed on the Pi
 rasterio
+# On Python < 3.11 also: tomli

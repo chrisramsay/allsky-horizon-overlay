@@ -10,8 +10,8 @@ angular width at its bearing; the bars inside the rim show measured light per de
 of azimuth from VIIRS satellite data.*
 
 Built for a ZWO ASI676MC with a 2.5 mm f/2 fisheye on a Raspberry Pi 5 at Searby,
-Lincolnshire (53.538 N, 0.383 W). Site and lens values are constants at the top of
-each script — change them for another setup.
+Lincolnshire (53.538 N, 0.383 W). All site, lens and geometry values live in one
+shared settings file, `site.toml` — change them there for another setup.
 
 ---
 
@@ -19,6 +19,8 @@ each script — change them for another setup.
 
 | File | Runs on | Purpose |
 |---|---|---|
+| `site.example.toml` | — | Shared settings template: site, lens, orientation, frame sizes, towns, mask, VIIRS. Copy to `site.toml` |
+| `allsky_site.py` | — | Loads `site.toml` for the three scripts below |
 | `horizon_overlay.py` | Pi | Generates `horizon_overlay.png`: town arcs, curved labels, azimuth bezel, optional light-pollution bars |
 | `viirs_profile.py` | Desktop / server | Turns a VIIRS night-lights GeoTIFF into `profile.csv` — light reaching the site per degree of azimuth |
 | `find_circle.py` | Pi | Measures the fisheye image circle (centre and diameter) in a real frame |
@@ -33,7 +35,7 @@ each script — change them for another setup.
 ```
  VIIRS GeoTIFF ──► viirs_profile.py ──► profile.csv ─┐
                                                      ├─► horizon_overlay.py ──► horizon_overlay.png
- town list + site + lens constants ──────────────────┘                                 │
+ site.toml (site, lens, towns) ──────────────────────┘                                 │
                                                                                        ▼
  real frame ──► find_circle.py ──► lens values ──► config/allsky-patch.jq ──► apply_config.sh
                                                     (crop, border, mask, LOGO_OVERLAY)
@@ -66,6 +68,38 @@ pip install -r requirements.txt
 ```
 
 `apply_config.sh` needs `jq` (`sudo apt install jq`).
+
+---
+
+## Settings: `site.toml`
+
+`horizon_overlay.py`, `detection_mask.py` and `viirs_profile.py` share one
+settings file, so the lens, orientation and location are defined once.
+
+```bash
+cp site.example.toml site.toml      # then edit site.toml
+```
+
+`site.toml` is git-ignored, so your own values stay local. If it's missing,
+the scripts fall back to `site.example.toml` and print a note. To use a
+different file: `ALLSKY_SITE=/path/to/file.toml python3 horizon_overlay.py`.
+
+| Section | Keys | Used by |
+|---|---|---|
+| `[site]` | `name`, `latitude`, `longitude` | overlay, VIIRS |
+| `[lens]` | `image_circle` (px), `fov` (°) | overlay, mask |
+| `[orientation]` | `rot` (°, clockwise), `east_left` | overlay, mask sectors |
+| `[frame.cropped]` | `width`, `height`, `offset_x`, `offset_y` | overlay — must equal the **crop** size |
+| `[frame.full]` | `width`, `height`, `offset_x`, `offset_y` | mask — the **full, uncropped** sensor frame |
+| `[overlay]` | `labels_inside`, `towns` | overlay |
+| `[mask]` | `min_alt`, `sectors` | mask |
+| `[viirs]` | `radius_km`, `min_km`, `walker_exp`, `smooth_deg` | VIIRS |
+
+The two `[frame.*]` sections exist because indi-allsky applies the logo overlay
+**after** `IMAGE_CROP_ROI` but uses the detection mask **before** it.
+
+Requires Python 3.11+ (for `tomllib`); on older Python, `pip install tomli`.
+Styling (colours, fonts, label sizes, bar lengths) stays in `horizon_overlay.py`.
 
 ---
 
@@ -112,7 +146,7 @@ The script:
 3. asks for confirmation, then loads it with `config.py load -c <file> --force`
 4. restarts indi-allsky (`systemctl --user restart indi-allsky`)
 5. waits 60 s and runs `find_circle.py` on the newest frame
-
+omv.searby.space
 To undo, it prints the reload command for the backup. indi-allsky also keeps
 config history: `./config.py list`, then `./config.py revert -i <id>`.
 
@@ -137,6 +171,9 @@ ID** — easy to mix up.
    python3 viirs_profile.py VNL_*average_masked.dat.tif
    ```
 
+Run it from a clone of this repo — it reads the site location and `[viirs]`
+settings from `site.toml` via `allsky_site.py`.
+
 The script only reads a window around the site, so the global file works directly.
 Optionally crop it first to save disk space:
 
@@ -144,10 +181,10 @@ Optionally crop it first to save disk space:
 gdal_translate -projwin -1.35 54.15 0.60 52.95 VNL_*average_masked.dat.tif lincs_viirs.tif
 ```
 
-**How it's calculated:** every pixel within `RADIUS_KM` (60) contributes
+**How it's calculated:** every pixel within `radius_km` (60) contributes
 `radiance × distance^−2.5` (Walker's law for sky glow) to its 1° bearing bin.
-Pixels closer than `MIN_KM` (1) are skipped so your own lights don't dominate.
-The result is smoothed over 3° and log-scaled to 0–1 for display; the quietest
+Pixels closer than `min_km` (1) are skipped so your own lights don't dominate.
+The result is smoothed over `smooth_deg` (3°) and log-scaled to 0–1 for display; the quietest
 quarter of directions shows no bar.
 
 > **LED caveat:** VIIRS is largely blind below ~500 nm, so white LED lighting
@@ -158,19 +195,19 @@ Copy `profile.csv` to the Pi.
 
 ## 5. Generate the overlay
 
-Edit the constants at the top of `horizon_overlay.py`:
+Settings come from `site.toml`:
 
-| Constant | Value here | Notes |
+| Setting | Value here | Notes |
 |---|---|---|
-| `SITE_LAT`, `SITE_LON` | 53.538, −0.383 | Camera location |
-| `IMG_W`, `IMG_H` | 3456 | **Crop size**, before the border |
-| `LENS_IMAGE_CIRCLE` | 3316 | From `find_circle.py` |
-| `LENS_FOV` | 181.5 | Full field of view, degrees |
-| `LENS_OFFSET_X/Y` | 0, 0 | Circle centre offset within the crop |
-| `ROT` | calibrate | Rotation, degrees clockwise on screen |
-| `EAST_LEFT` | `False` | Matches indi-allsky's cardinals with both flips on |
-| `LABELS_INSIDE` | `True` | Labels inside the rim; set `False` if there's ~130 px of margin outside |
-| `TOWNS` | list | `(name, lat, lon, width_km, population)` |
+| `[site]` `latitude`, `longitude` | 53.538, −0.383 | Camera location |
+| `[frame.cropped]` `width`, `height` | 3456 | **Crop size**, before the border |
+| `[frame.cropped]` `offset_x`, `offset_y` | 0, 0 | Circle centre offset within the crop |
+| `[lens]` `image_circle` | 3316 | From `find_circle.py` |
+| `[lens]` `fov` | 181.5 | Full field of view, degrees |
+| `[orientation]` `rot` | calibrate | Rotation, degrees clockwise on screen |
+| `[orientation]` `east_left` | `false` | Matches indi-allsky's cardinals with both flips on |
+| `[overlay]` `labels_inside` | `true` | Labels inside the rim; `false` needs ~130 px of margin outside |
+| `[overlay]` `towns` | list | `{ name, lat, lon, width_km, population }` per town |
 
 `width_km` sets the arc length (`2·atan(width/2 / distance)`); `population` only
 decides which labels get first pick of a ring when they'd collide.
@@ -182,7 +219,7 @@ file horizon_overlay.png     # expect: 3456 x 3456 ... RGBA
 
 Leave out `--profile` for town arcs only.
 
-### Calibrating `ROT` and `EAST_LEFT`
+### Calibrating `rot` and `east_left`
 
 On a clear night:
 
@@ -199,9 +236,9 @@ Read its pixel position `(x, y)` and convert to an angle:
 python3 -c "import math; x,y=1520,960; c=1728; print(round(math.degrees(math.atan2(x-c, c-y)),1))"
 ```
 
-(`c` is half the crop size.) Set `ROT` to that value so the blue **N** marker
+(`c` is half the crop size.) Set `rot` in `site.toml` to that value so the blue **N** marker
 lands on Polaris. Check east/west with the Moon or a planet rising; flip
-`EAST_LEFT` if they're mirrored. Re-run without `--cardinals` when done.
+`east_left` if they're mirrored. Re-run without `--cardinals` when done.
 
 ## 6. Install
 
@@ -211,7 +248,7 @@ systemctl --user restart indi-allsky
 ```
 
 `LOGO_OVERLAY` is set by `config/allsky-patch.jq`. After any change to towns,
-`ROT`, lens values or the profile, regenerate, copy and restart.
+`rot`, lens values or the profile, regenerate, copy and restart.
 
 The PNG must be **RGBA** — transparent background with per-element alpha
 (arcs 255, bezel ~100, bars 40–200). If an editor flattens it to RGB, the
@@ -239,22 +276,21 @@ lit low cloud near the horizon don't skew the exposure.
 
 ### Where the geometry comes from
 
-The script does **not** read image sizes from a frame. Everything comes from the
-constants at the top of the script:
+The script does **not** read image sizes from a frame. Everything comes from
+`site.toml`:
 
-| Constant | Value here | Meaning |
+| Setting | Value here | Meaning |
 |---|---|---|
-| `IMG_W`, `IMG_H` | 3552 | Mask size — the **full sensor frame**, uncropped |
-| `LENS_IMAGE_CIRCLE` | 3316 | Image circle diameter, px |
-| `LENS_FOV` | 181.5 | Full field of view, degrees |
-| `LENS_OFFSET_X/Y` | 0, 0 | Circle centre offset — deliberately 0, see below |
-| `ROT`, `EAST_LEFT` | 0.0, `False` | Orientation — only used by `SECTORS` |
-| `MIN_ALT` | 20 | Everything below this altitude is ignored |
-| `SECTORS` | empty | Extra exclusions: `(az_from, az_to, min_alt)` |
+| `[frame.full]` `width`, `height` | 3552 | Mask size — the **full sensor frame**, uncropped |
+| `[frame.full]` `offset_x`, `offset_y` | 0, 0 | Circle centre offset — deliberately 0, see below |
+| `[lens]` `image_circle` | 3316 | Image circle diameter, px (shared with the overlay) |
+| `[lens]` `fov` | 181.5 | Full field of view, degrees (shared) |
+| `[orientation]` `rot`, `east_left` | 0.0, `false` | Shared with the overlay — only used by `sectors` |
+| `[mask]` `min_alt` | 20 | Everything below this altitude is ignored |
+| `[mask]` `sectors` | `[]` | Extra exclusions: `[az_from, az_to, min_alt]` |
 
-`LENS_IMAGE_CIRCLE` and `LENS_FOV` should match `horizon_overlay.py`; the
-**size and offsets differ**, because the overlay is applied after the crop and
-the mask before it.
+The lens and orientation are shared with the overlay automatically; only the
+frame differs, because the overlay is applied after the crop and the mask before it.
 
 **Why the offsets are 0:** in the uncropped frame the circle centre is about
 65 px from the middle, but whether that's up-left or down-right depends on
@@ -264,22 +300,22 @@ established. The cut-off disc (≈1279 px radius at 20°) sits well inside the
 
 ### What it does
 
-1. Creates a black canvas `IMG_W` × `IMG_H`.
-2. Finds the horizon radius: `(LENS_IMAGE_CIRCLE / 2) × 90 / (LENS_FOV / 2)`
+1. Creates a black canvas `[frame.full]` `width` × `height`.
+2. Finds the horizon radius: `(image_circle / 2) × 90 / (fov / 2)`
    — here 1658 × 90 / 90.75 ≈ **1644 px**.
 3. Finds the cut-off radius. On an equidistant fisheye, radius is proportional
-   to zenith angle: `r = horizon_radius × (90 − MIN_ALT) / 90` — at 20° that's
+   to zenith angle: `r = horizon_radius × (90 − min_alt) / 90` — at 20° that's
    1644 × 70 / 90 ≈ **1279 px**.
 4. Draws a white disc of that radius — the sky that's used.
-5. Blacks out each `SECTORS` entry from the disc edge inward to its own altitude.
+5. Blacks out each `sectors` entry from the disc edge inward to its own altitude.
 6. Saves `detection_mask.png`.
 
 ### Sectors — not yet verified
 
-`SECTORS` entries such as `(330, 30, 35)` (ignore NNW–NNE below 35°) are drawn
-using `ROT` and `EAST_LEFT`. Because the mask is applied before the crop, and
+`sectors` entries such as `[330, 30, 35]` (ignore NNW–NNE below 35°) are drawn
+using `rot` and `east_left`. Because the mask is applied before the crop, and
 possibly before the flips, a sector may land on the **opposite side of the sky**
-(both flips = a 180° rotation; `ROT = 180` would correct it). Leave `SECTORS`
+(both flips = a 180° rotation; adding 180 to `rot` would correct it). Leave `sectors`
 empty until the orientation is confirmed, e.g. with a deliberate test sector and
 star detection.
 
@@ -288,7 +324,7 @@ star detection.
 A rough visual check only: the script tints the ignored area red on a frame and
 writes `mask_preview.png`. Saved frames are cropped (3616 × 3616 with border)
 while the mask is full-sensor size, so the preview centres one on the other and
-ignores the offset — fine for judging `MIN_ALT`, not for exact alignment.
+ignores the offset — fine for judging `min_alt`, not for exact alignment.
 
 ### Steps
 
@@ -315,8 +351,8 @@ sudo cp detection_mask.png /var/lib/indi-allsky/detection_mask.png
 
 ### Tuning
 
-- **`MIN_ALT`**: 25–30° for a cluttered horizon, 15° for a clear one.
-- **`SECTORS`**: see the warning above before using.
+- **`min_alt`**: 25–30° for a cluttered horizon, 15° for a clear one.
+- **`sectors`**: see the warning above before using.
 
 ---
 
@@ -324,9 +360,10 @@ sudo cp detection_mask.png /var/lib/indi-allsky/detection_mask.png
 
 | Symptom | Cause / fix |
 |---|---|
-| `Logo Overlay dimensions do not match image` | `IMG_W/H` must equal the **crop** size, not the final frame |
-| Labels cut off at the edge | Not enough margin in the crop; keep `LABELS_INSIDE = True` |
-| Overlay mirrored (east on the wrong side) | Toggle `EAST_LEFT` |
+| `Logo Overlay dimensions do not match image` | `[frame.cropped]` must equal the **crop** size, not the final frame |
+| Labels cut off at the edge | Not enough margin in the crop; keep `labels_inside = true` |
+| Overlay mirrored (east on the wrong side) | Toggle `east_left` in `site.toml` |
+| `Note: site.toml not found` | Using the example values — `cp site.example.toml site.toml` |
 | Arcs/ticks outside the rim disappear | Circle mask drawn over them — raise `IMAGE_CIRCLE_MASK.DIAMETER` |
 | `find_circle.py` width ≠ height | Rim detection failed; use the current version (radial scan) and check `circle_check.png` |
 | Crop values rejected | All four `IMAGE_CROP_ROI` values must be even |
