@@ -256,7 +256,7 @@ overlay will black out the sky.
 
 ## 7. Detection / metering mask (optional)
 
-![Example overlay](docs/mask_preview.png)
+![Example overlay](docs/mask-preview.png)
 
 *Example mask preview from running the script with the `--preview` option.*
 
